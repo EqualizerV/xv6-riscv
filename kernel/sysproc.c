@@ -6,6 +6,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "vm.h"
+#include "pinfo.h"
 
 uint64
 sys_exit(void)
@@ -109,4 +110,38 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+uint64
+sys_getprocs(void)
+{
+  uint64 buf;
+  int max;
+  struct pinfo *entries;
+  int count;
+
+  argaddr(0, &buf);
+  argint(1, &max);
+
+  if (max < 0)
+    return -1;
+
+  if (NPROC > PGSIZE / sizeof(struct pinfo))
+    return -1;
+
+  entries = (struct pinfo *)kalloc();
+  if (entries == 0)
+    return -1;
+
+  count = collectprocs(entries, max);
+  
+  if (copyout(myproc()->pagetable, myproc()->sz, buf,
+            (char *)entries, count * sizeof(struct pinfo)) < 0) {
+    kfree(entries);
+    return -1;
+  }
+
+  kfree(entries);
+
+  return count;
 }
